@@ -2,7 +2,7 @@
 
 **Proyecto Integrador M2 | IA Generativa**
 
-Agente inteligente de ventas para **Retail E-commerce** (tienda de electrodomésticos y tecnología) que identifica clientes por DNI, recuerda sus compras pasadas, detecta carritos abandonados y personaliza la atención en tiempo real utilizando datos de prueba locales basados en archivos JSON dedicados por endpoint.
+Agente inteligente de ventas para **Retail E-commerce** (tienda de electrodomésticos y tecnología) que identifica clientes por DNI, recuerda sus compras pasadas, detecta carritos abandonados y personaliza la atención en tiempo real conectándose dinámicamente a la **API REST de Magento 2**, **Google BigQuery** (catálogo de productos) y **PostgreSQL** para la persistencia del perfil y memoria a largo plazo.
 
 ---
 
@@ -18,7 +18,7 @@ En las grandes plataformas de e-commerce (como Magento 2), la atención al clien
 |----------------|----------|---------|
 | Cliente contacta por chat/teléfono | El agente no sabe quién es hasta que busca manualmente en el sistema | Tiempo perdido, experiencia impersonal |
 | Cliente pregunta por productos | Las recomendaciones son genéricas, sin considerar historial | Baja tasa de conversión |
-| Cliente abandona un carrito | Nadie le hace seguimiento proactivo | Se pierden ventas potenciales |
+| Cliente abandona un carrito | Nadie le hace seguimiento proactivo | Se pierden ventas potenciales (~30% de carritos abandonados) |
 | Cliente tiene múltiples cuentas | El sistema solo busca en una cuenta | Historial incompleto, mala experiencia |
 
 ### Por qué IA Generativa aporta valor
@@ -72,13 +72,13 @@ Clientes del Retail E-commerce que interactúan por canales digitales (chat, Wha
 
 ### Riesgos y límites
 
-- **Latencia en primera identificación**: La primera vez que un cliente da su DNI, el sistema consulta los datos + genera resumen con IA (~5-10 segundos). Las siguientes veces es instantáneo (caché en PostgreSQL).
-- **Clientes con múltiples cuentas**: Un cliente puede tener 2+ cuentas con el mismo DNI pero diferente email. El sistema las consolida automáticamente.
-- **Independencia de APIs externas**: En modo pruebas, el sistema lee archivos JSON locales que actúan como mock-ups, permitiendo probar toda la lógica del agente sin necesidad de conectarse a producción.
+- **Latencia en primera identificación**: La primera vez que un cliente da su DNI, el sistema consulta Magento + genera resumen con IA (~5-10 segundos). Las siguientes veces es instantáneo (caché en PostgreSQL).
+- **Clientes con múltiples cuentas**: Un cliente puede tener 2+ cuentas con el mismo DNI pero diferente email. El sistema las consolida automáticamente para tener un historial unificado.
+- **Dependencia de APIs externas**: Si Magento o BigQuery no responden, las herramientas fallan *gracefully* con mensajes de error controlados o recurren al catálogo alternativo.
 
 ---
 
-## 3. Arquitectura de Solución
+## 3. Arquitectura de Solución (Producción)
 
 ### Tipo seleccionado: Arquitectura basada en Agente
 
@@ -95,7 +95,7 @@ Se eligió una **arquitectura basada en agente** (no workflow ni híbrida) por l
 3. **No aplica híbrida**: No hay una parte "simple" que pueda resolverse con un workflow separado. Todas las interacciones requieren razonamiento sobre contexto.
 4. **Principio de mínima complejidad**: Un agente ReAct con `create_react_agent` resuelve el problema completo. Agregar un dispatcher o workflow añadiría complejidad sin valor.
 
-### Diagrama de arquitectura
+### Diagrama de arquitectura de producción
 
 ```mermaid
 graph TD
@@ -103,13 +103,10 @@ graph TD
         LLM["Gemini 2.5 Flash"]
     end
 
-    subgraph "Fuentes de Datos (Modo Mock Local)"
-        M_C["mock_customers.json<br/>Clientes & DNI"]
-        M_O["mock_orders.json<br/>Histórico de Órdenes"]
-        M_Q["mock_carts.json<br/>Carritos Abandonados"]
-        M_P["mock_products.json<br/>Catálogo & Stock"]
-        M_U["mock_coupons.json<br/>Cupones de Descuento"]
-        PG["PostgreSQL - Base de Datos<br/>Perfiles Generados + Memoria"]
+    subgraph "Fuentes de Datos (Producción)"
+        MAG["Magento 2 REST API<br/>1.1M clientes | 1.5M ordenes"]
+        BQ["BigQuery - GCP<br/>5,896 productos"]
+        PG["PostgreSQL - Cloud SQL<br/>Perfiles + Memoria"]
     end
 
     subgraph "Agente ReAct (LangGraph)"
@@ -126,15 +123,13 @@ graph TD
     AG --> LLM
     AG --> CK
     T1 --> PG
-    T1 --> M_C
-    T1 --> M_O
-    T1 --> M_Q
+    T1 --> MAG
     T1 --> LLM
-    T2 --> M_P
-    T3 --> M_P
-    T4 --> M_C
-    T5 --> M_O
-    T6 --> M_U
+    T2 --> BQ
+    T3 --> MAG
+    T4 --> MAG
+    T5 --> MAG
+    T6 --> MAG
 ```
 
 ---
@@ -150,7 +145,7 @@ graph TD
 | **Dispatcher** | No | No necesario: un solo agente maneja todas las interacciones |
 | **Workflow** | No | No necesario: el flujo no es predecible ni secuencial |
 | **Múltiples agentes** | No | No necesario: un solo agente con herramientas es suficiente |
-| **RAG / Vectores** | No | No necesario: los datos vienen de APIs/JSON estructurados, no de documentos |
+| **RAG / Vectores** | No | No necesario: los datos vienen de APIs estructuradas, no de documentos |
 | **Guardrails avanzados** | No | No necesario en esta etapa; el system prompt define los límites |
 
 ---
@@ -165,12 +160,12 @@ El agente es un **ReAct Agent** creado con `create_react_agent` de LangGraph. Fu
 
 | # | Tool | Qué hace | Fuente de datos | Cuando la usa el agente |
 |---|------|----------|-----------------|-------------------------|
-| 1 | `identificar_cliente(dni)` | Busca al cliente por DNI en todas sus cuentas, obtiene órdenes y carritos abandonados, genera perfil con IA y lo guarda en PostgreSQL | PostgreSQL + JSON Mock + Gemini | Cuando el cliente proporciona su DNI |
-| 2 | `buscar_producto(busqueda)` | Busca productos por nombre, marca o SKU en el catálogo local | `mock_products.json` | Cuando el cliente busca un producto |
-| 3 | `consultar_stock_real(sku)` | Consulta stock en tiempo real y precio actual. Soporta múltiples SKUs | `mock_products.json` | Cuando preguntan por disponibilidad |
-| 4 | `buscar_cliente(nombre)` | Busca datos de un cliente por nombre | `mock_customers.json` | Cuando se busca un cliente sin DNI |
-| 5 | `consultar_ultima_orden(id)` | Estado de la última orden por correo o DNI | `mock_orders.json` | Cuando preguntan por un pedido |
-| 6 | `validar_cupon(codigo)` | Verifica si un cupón de descuento es válido | `mock_coupons.json` | Cuando mencionan un cupón |
+| 1 | `identificar_cliente(dni)` | Busca al cliente por DNI en todas sus cuentas de Magento, obtiene órdenes y carritos abandonados, genera perfil con IA y lo guarda en PostgreSQL | PostgreSQL + Magento API + Gemini | Cuando el cliente proporciona su DNI |
+| 2 | `buscar_producto(busqueda)` | Busca productos por nombre, marca o categoría en el catálogo unificado de BigQuery | BigQuery (GCP) | Cuando el cliente busca un producto |
+| 3 | `consultar_stock_real(sku)` | Consulta stock en tiempo real y precio actual en vivo en Magento. Soporta múltiples SKUs | Magento API `/products` | Cuando preguntan por disponibilidad o precio |
+| 4 | `buscar_cliente(nombre)` | Busca datos de un cliente por nombre en Magento | Magento API `/customers/search` | Cuando se busca un cliente sin DNI |
+| 5 | `consultar_ultima_orden(id)` | Estado de la última orden por correo o DNI en Magento | Magento API `/orders` | Cuando preguntan por un pedido |
+| 6 | `validar_cupon(codigo)` | Verifica si un cupón de descuento es válido en Magento | Magento API `/coupons/search` | Cuando mencionan un cupón |
 
 ### 5.3 Memoria
 
@@ -184,16 +179,15 @@ El sistema tiene **3 niveles de memoria**:
 
 ---
 
-## 6. Controles Implementados
+## 6. Modo de Prueba Local (Mock Data)
 
-| Control | Implementación |
-|---------|----------------|
-| **Validación de entrada** | Variables de entorno validadas al inicio; si falta alguna, el sistema falla con mensaje claro |
-| **Manejo de errores en herramientas** | `call_magento_api` captura excepciones y retorna `{"error": ...}` en vez de crashear |
-| **Respuesta cuando falta información** | Si el DNI no existe, responde "No se encontró ningún cliente con DNI X" |
-| **Control de temas fuera del dominio** | El system prompt limita al agente a temas de ventas de la tienda |
-| **Consolidación de cuentas** | `fetch_customer_by_dni` unifica todas las cuentas del mismo DNI en un único perfil |
-| **Local Mock Testing** | Interceptor de llamadas API locales que independiza el desarrollo de dependencias de red de Magento |
+Para facilitar el desarrollo, pruebas y demostraciones locales sin requerir conectividad de red activa a Magento ni credenciales de Google BigQuery, el proyecto incluye un **motor simulado integrado** que intercepta las llamadas de red e interactúa directamente con archivos JSON estructurados:
+
+*   `mock_customers.json`: Simula la respuesta del endpoint `/customers/search`.
+*   `mock_orders.json`: Simula el historial del endpoint `/orders`.
+*   `mock_carts.json`: Simula carritos de compras activos del endpoint `/carts/search`.
+*   `mock_products.json`: Simula consultas de stock del catálogo físico en vivo.
+*   `mock_coupons.json`: Simula la base de cupones de descuento.
 
 ---
 
@@ -201,14 +195,14 @@ El sistema tiene **3 niveles de memoria**:
 
 | Archivo | Propósito |
 |---------|-----------|
-| `magento_agent.py` | Código principal del agente (herramientas, memoria, configuración) |
-| `mock_customers.json` | Datos ficticios de clientes para emulación de endpoint de Magento |
-| `mock_orders.json` | Historial de transacciones ficticias para emulación de órdenes |
-| `mock_carts.json` | Cotizaciones y carritos abandonados para emulación de recuperación de ventas |
-| `mock_products.json` | Catálogo de productos, stock en vivo y precios de prueba |
-| `mock_coupons.json` | Cupones de descuento válidos para pruebas conversacionales |
-| `.env` | Variables de entorno (API keys, credenciales de PostgreSQL) |
-| `README.md` | Documentación generalizada del proyecto |
+| `magento_agent.py` | Código principal del agente (herramientas, memoria, configuración e interceptor local) |
+| `mock_customers.json` | Datos ficticios de clientes para emulación local de Magento |
+| `mock_orders.json` | Historial de transacciones de prueba |
+| `mock_carts.json` | Carritos abandonados simulados |
+| `mock_products.json` | Catálogo de productos local para pruebas de stock |
+| `mock_coupons.json` | Cupones de descuento de prueba |
+| `.env` | Variables de entorno (API keys, credenciales) |
+| `README.md` | Documentación de arquitectura de producción y local del proyecto |
 
 ---
 
@@ -217,8 +211,9 @@ El sistema tiene **3 niveles de memoria**:
 - **Gemini 2.5 Flash** (Google): Cerebro del agente, generación de perfiles y resúmenes.
 - **LangGraph** + **LangChain**: Patrón ReAct con `create_react_agent`.
 - **MemorySaver** (LangGraph): Checkpointer para contexto conversacional.
-- **PostgreSQL**: Base de datos local/nube para perfiles de cliente, órdenes e historial de conversaciones.
-- **JSON Mock Data**: Archivos locales dedicados por endpoint que emulan la API de Magento REST.
+- **Magento 2 REST API**: Conexión de producción a la plataforma e-commerce.
+- **BigQuery** (GCP): Catálogo de productos de alta disponibilidad.
+- **PostgreSQL**: Base de datos de persistencia e historiales conversacionales de clientes.
 
 ---
 
@@ -230,8 +225,8 @@ El sistema tiene **3 niveles de memoria**:
 |----------|----------|----------|
 | `GOOGLE_API_KEY` | Google Gemini | Clave API para el modelo LLM |
 | `POSTGRES_URI` | PostgreSQL | Conexión a la BD de perfiles de cliente |
-| `MAGENTO_BASE_URL` | Magento 2 REST API | URL base de la tienda (requerido para inicialización, puede ser `http://localhost/`) |
-| `MAGENTO_ACCESS_TOKEN` | Magento 2 REST API | Token Bearer (requerido para inicialización, puede ser `mock_token`) |
+| `MAGENTO_BASE_URL` | Magento 2 REST API | URL base de la tienda de producción (en pruebas locales puede ser cualquiera) |
+| `MAGENTO_ACCESS_TOKEN` | Magento 2 REST API | Token Bearer (en pruebas locales puede ser cualquiera) |
 
 ### Dependencias
 
