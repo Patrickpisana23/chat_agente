@@ -150,48 +150,122 @@ graph TD
 
 ---
 
-## 5. Componentes Usados
+## 5. Orquestación y Componentes
 
-### 5.1 Agente (Orquestador)
+### 5.0 Orquestador
 
-El agente es un **ReAct Agent** creado con `create_react_agent` de LangGraph. Funciona como orquestador único: recibe el mensaje del usuario, razona sobre qué herramienta usar (o si responder directamente), ejecuta la herramienta, y genera la respuesta final.
+El sistema utiliza un orquestador basado en **LangGraph** (`create_react_agent`), el cual es responsable de coordinar el flujo conversacional del agente conversacional de manera asíncrona e inteligente.
 
-### 5.2 Herramientas Personalizadas
+El orquestador recibe el mensaje del usuario, mantiene el estado conversacional y los hilos activos usando un checkpointer (`MemorySaver`), decide cuándo invocar herramientas en base al razonamiento semántico del modelo, procesa los outputs estructurados devueltos por dichas herramientas y finalmente concatena las respuestas para presentarlas al cliente de forma fluida.
 
-| # | Tool | Qué hace | Fuente de datos | Cuando la usa el agente |
-|---|------|----------|-----------------|-------------------------|
-| 1 | `identificar_cliente(dni)` | Busca al cliente por DNI en todas sus cuentas de Magento, obtiene órdenes y carritos abandonados, genera perfil con IA y lo guarda en PostgreSQL | PostgreSQL + Magento API + Gemini | Cuando el cliente proporciona su DNI |
-| 2 | `buscar_producto(busqueda)` | Busca productos por nombre, marca o categoría en el catálogo unificado de BigQuery | BigQuery (GCP) | Cuando el cliente busca un producto |
-| 3 | `consultar_stock_real(sku)` | Consulta stock en tiempo real y precio actual en vivo en Magento. Soporta múltiples SKUs | Magento API `/products` | Cuando preguntan por disponibilidad o precio |
-| 4 | `buscar_cliente(nombre)` | Busca datos de un cliente por nombre en Magento | Magento API `/customers/search` | Cuando se busca un cliente sin DNI |
-| 5 | `consultar_ultima_orden(id)` | Estado de la última orden por correo o DNI en Magento | Magento API `/orders` | Cuando preguntan por un pedido |
-| 6 | `validar_cupon(codigo)` | Verifica si un cupón de descuento es válido en Magento | Magento API `/coupons/search` | Cuando mencionan un cupón |
+En este proyecto, el orquestador y el agente se implementan conjuntamente a través de la interfaz reactiva de `create_react_agent`, evitando separar responsabilidades innecesarias en capas redundantes de software, respetando así el principio de mínima complejidad.
 
-### 5.3 Memoria
+### 5.1 Agente
 
-El sistema tiene **3 niveles de memoria**:
+El agente actúa como el "cerebro" o núcleo de razonamiento (utilizando **Gemini 2.5 Flash**). Recibe directrices estrictas a través de un prompt del sistema sobre cómo comportarse, cuándo solicitar el DNI, cómo recuperar carritos abandonados de forma no invasiva, y cómo personalizar las recomendaciones en base al perfil recuperado desde PostgreSQL.
 
-| Nivel | Tecnología | Qué recuerda | Duración |
-|-------|------------|--------------|----------|
-| **Memoria en sesión** | `MemorySaver` (LangGraph checkpointer) | Toda la conversación actual (no pide el DNI de nuevo) | Mientras dure la sesión |
-| **Memoria de perfil** | PostgreSQL (`customer_profiles`) | Órdenes, carritos abandonados, resumen IA del cliente | Persistente |
-| **Memoria de conversaciones** | PostgreSQL (`historial_conversaciones`) | Resúmenes de conversaciones pasadas con fecha | Persistente |
+### 5.2 Dispatcher (No aplica)
+
+No se implementó un dispatcher porque el patrón **ReAct (Reasoning and Acting)** implementado ya realiza una **clasificación implícita de la intención** del usuario en tiempo de ejecución. 
+
+El agente determina dinámicamente qué herramienta utilizar basándose en la semántica y el contexto de la conversación, eliminando la necesidad de un modelo de clasificación previo. Añadir un dispatcher independiente introduciría latencia y complejidad innecesarias sin aportar valor real al flujo conversacional del Retail E-commerce.
+
+### 5.3 Workflow (No aplica)
+
+No se implementó un workflow secuencial debido a que el flujo conversacional no sigue pasos lineales ni predecibles.
+
+En un workflow secuencial tradicional existirían etapas rígidas como:
+```
+clasificar intención ➔ procesar consulta ➔ responder al cliente
+```
+Sin embargo, en la atención al cliente real de e-commerce, el usuario puede cambiar de tema en cualquier momento (ej. pasar de consultar un pedido a preguntar por stock de otro artículo o validar un cupón). Un agente dinámico basado en herramientas es la aproximación óptima por su flexibilidad para pivotar según las intenciones del usuario.
+
+### 5.4 Flujo de Funcionamiento Conversacional
+
+El ciclo de vida del procesamiento de un mensaje sigue el siguiente flujo secuencial:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Usuario
+    participant Orquestador as Orquestador (LangGraph)
+    participant LLM as Cerebro (Gemini 2.5 Flash)
+    participant DB as Memoria (Postgres/MemorySaver)
+    participant Tools as Herramientas (APIs/JSON)
+
+    Usuario->>Orquestador: Envía mensaje ("¿Tienen stock del SKU ASUS-ROG-01?")
+    Orquestador->>DB: Recupera historial de sesión activa (MemorySaver)
+    Orquestador->>LLM: Envía prompt del sistema + mensaje + historial
+    LLM->>LLM: Analiza intención y decide usar herramienta
+    LLM-->>Orquestador: Solicita ejecutar consultar_stock_real(ASUS-ROG-01)
+    Orquestador->>Tools: Invoca consultar_stock_real con SKU ASUS-ROG-01
+    Tools-->>Orquestador: Retorna datos ("Stock: 8 uds | Precio: S/4150.00")
+    Orquestador->>LLM: Envía resultado de la herramienta
+    LLM->>LLM: Genera respuesta final en lenguaje natural
+    LLM-->>Orquestador: Envía respuesta redactada
+    Orquestador->>Usuario: Presenta respuesta ("¡Sí! Tenemos 8 unidades disponibles...")
+```
 
 ---
 
-## 6. Modo de Prueba Local (Mock Data)
+## 6. Controles Implementados y Buenas Prácticas
+
+### 6.1 Control de Dominio
+
+El agente conversacional está restringido mediante directrices de su **system prompt** exclusivamente a temas relacionados con el retail e-commerce:
+*   Búsqueda de productos del catálogo.
+*   Seguimiento y estado de pedidos.
+*   Consultas de stock y precios de SKUs.
+*   Validación de cupones de descuento.
+*   Recomendaciones personalizadas de compra.
+
+Si el usuario realiza consultas sobre temas totalmente ajenos al negocio (como política, medicina o programación), el agente está instruido para desviar educadamente la conversación y redirigir al usuario hacia el dominio permitido del Retail E-commerce.
+
+### 6.2 Confirmación de Acciones Sensibles
+
+Como buena práctica conversacional de diseño de interfaces conversacionales, el agente está diseñado para **solicitar confirmación explícita** antes de realizar o sugerir acciones que impliquen una intención de compra o el inicio de una simulación de pedido.
+
+*Ejemplo de flujo conversacional:*
+> **Agente:** "Veo que tienes un carrito de compras pendiente con una Laptop Gaming ASUS ROG. ¿Te gustaría que completemos esa compra o prefieres revisar accesorios compatibles antes?"
+
+Aunque el sistema no procesa pasarelas de pago directas por cuestiones de seguridad, la implementación de patrones de confirmación garantiza que el usuario mantenga el control total y evita falsos positivos en las sugerencias de venta.
+
+### 6.3 Manejo de Errores e Inyecciones
+
+*   **Validación de entrada**: Variables de entorno validadas al inicio; si falta alguna, el sistema falla con mensaje claro.
+*   **Manejo de errores en herramientas**: `call_magento_api` captura excepciones y retorna `{"error": ...}` en vez de crashear.
+*   **SQL Injection**: La consulta de BigQuery utiliza parámetros (`@busqueda`) en vez de interpolación de strings.
+*   **Consolidación de cuentas**: `fetch_customer_by_dni` unifica todas las cuentas del mismo DNI en un único perfil en PostgreSQL.
+
+---
+
+## 7. Demo de Decisiones del Agente (Reasoning Table)
+
+La siguiente tabla ilustra cómo el orquestador ReAct toma decisiones lógicas de forma autónoma en función de las entradas del usuario:
+
+| Mensaje del Usuario | Razonamiento del Agente | Herramienta Ejecutada | Resultado Esperado |
+|---------------------|-------------------------|------------------------|--------------------|
+| "Hola, mi DNI es 48014673" | Detecta DNI. El agente debe identificar al usuario para personalizar la sesión. | `identificar_cliente(dni="48014673")` | Recupera perfil consolidado e historial de PostgreSQL/Magento. |
+| "Quiero una laptop gamer" | El usuario busca un artículo. Debe consultar el catálogo disponible. | `buscar_producto(busqueda="laptop gamer")` | Devuelve lista de SKUs que coinciden con la búsqueda. |
+| "¿Tienen stock del SKU ASUS-ROG-01?" | Solicita stock y disponibilidad de un artículo específico en vivo. | `consultar_stock_real(sku="ASUS-ROG-01")` | Retorna cantidad física en almacén y precio actual. |
+| "¿Cómo va mi pedido?" | Pregunta por el estado de su orden. Requiere validar sus compras recientes. | `consultar_ultima_orden(identificador="manuel.huaman@gmail.com")` | Muestra el estado del último pedido (`complete`, `pending`, etc.). |
+| "Tengo el cupón DESCUENTO10" | Menciona una promoción. Debe validar si la regla de descuento está activa. | `validar_cupon(codigo="DESCUENTO10")` | Confirma validez del cupón para aplicar el descuento. |
+
+---
+
+## 8. Modo de Prueba Local (Mock Data)
 
 Para facilitar el desarrollo, pruebas y demostraciones locales sin requerir conectividad de red activa a Magento ni credenciales de Google BigQuery, el proyecto incluye un **motor simulado integrado** que intercepta las llamadas de red e interactúa directamente con archivos JSON estructurados:
 
-*   `mock_customers.json`: Simula la respuesta del endpoint `/customers/search`.
-*   `mock_orders.json`: Simula el historial del endpoint `/orders`.
-*   `mock_carts.json`: Simula carritos de compras activos del endpoint `/carts/search`.
-*   `mock_products.json`: Simula consultas de stock del catálogo físico en vivo.
-*   `mock_coupons.json`: Simula la base de cupones de descuento.
+*   [mock_customers.json](file:///c:/Users/patrickpisana/OneDrive%20-%20IMPORTACIONES%20HIRAOKA/Desktop/chat_agente%20-%20v01/mock_customers.json): Simula la respuesta del endpoint `/customers/search`.
+*   [mock_orders.json](file:///c:/Users/patrickpisana/OneDrive%20-%20IMPORTACIONES%20HIRAOKA/Desktop/chat_agente%20-%20v01/mock_orders.json): Simula el historial del endpoint `/orders`.
+*   [mock_carts.json](file:///c:/Users/patrickpisana/OneDrive%20-%20IMPORTACIONES%20HIRAOKA/Desktop/chat_agente%20-%20v01/mock_carts.json): Simula carritos de compras activos del endpoint `/carts/search`.
+*   [mock_products.json](file:///c:/Users/patrickpisana/OneDrive%20-%20IMPORTACIONES%20HIRAOKA/Desktop/chat_agente%20-%20v01/mock_products.json): Simula consultas de stock del catálogo físico en vivo.
+*   [mock_coupons.json](file:///c:/Users/patrickpisana/OneDrive%20-%20IMPORTACIONES%20HIRAOKA/Desktop/chat_agente%20-%20v01/mock_coupons.json): Simula la base de cupones de descuento.
 
 ---
 
-## 7. Estructura del Proyecto
+## 9. Estructura del Proyecto
 
 | Archivo | Propósito |
 |---------|-----------|
@@ -206,18 +280,18 @@ Para facilitar el desarrollo, pruebas y demostraciones locales sin requerir cone
 
 ---
 
-## 8. Stack Tecnológico
+## 10. Stack Tecnológico
 
-- **Gemini 2.5 Flash** (Google): Cerebro del agente, generación de perfiles y resúmenes.
-- **LangGraph** + **LangChain**: Patrón ReAct con `create_react_agent`.
-- **MemorySaver** (LangGraph): Checkpointer para contexto conversacional.
-- **Magento 2 REST API**: Conexión de producción a la plataforma e-commerce.
-- **BigQuery** (GCP): Catálogo de productos de alta disponibilidad.
-- **PostgreSQL**: Base de datos de persistencia e historiales conversacionales de clientes.
+*   **Gemini 2.5 Flash** (Google): Cerebro del agente, generación de perfiles y resúmenes.
+*   **LangGraph** + **LangChain**: Patrón ReAct con `create_react_agent`.
+*   **MemorySaver** (LangGraph): Checkpointer para contexto conversacional.
+*   **Magento 2 REST API**: Conexión de producción a la plataforma e-commerce.
+*   **BigQuery** (GCP): Catálogo de productos de alta disponibilidad.
+*   **PostgreSQL**: Base de datos de persistencia e historiales conversacionales de clientes.
 
 ---
 
-## 9. Configuración y Ejecución
+## 11. Configuración y Ejecución
 
 ### Variables de Entorno (`.env`)
 
