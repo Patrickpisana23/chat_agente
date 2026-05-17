@@ -1,0 +1,104 @@
+{
+  "items": [
+    {
+      "sku": "ASUS-ROG-01",
+      "name": "Laptop Gaming ASUS ROG Strix G16",
+      "price": 4150.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 8
+        }
+      }
+    },
+    {
+      "sku": "GAM-AUD-BT",
+      "name": "Audífonos Gamer Inalámbricos",
+      "price": 200.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 15
+        }
+      }
+    },
+    {
+      "sku": "GAM-TEC-RGB",
+      "name": "Teclado Mecánico Gaming RGB",
+      "price": 240.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 0
+        }
+      }
+    },
+    {
+      "sku": "TEL-CAR-20W",
+      "name": "Cargador Rápido Inalámbrico 20W",
+      "price": 150.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 50
+        }
+      }
+    },
+    {
+      "sku": "AUD-BT-302",
+      "name": "Parlante Bluetooth Inalámbrico",
+      "price": 150.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 20
+        }
+      }
+    },
+    {
+      "sku": "PRN-EPS-L3250",
+      "name": "Impresora Multifuncional Epson EcoTank",
+      "price": 300.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 4
+        }
+      }
+    },
+    {
+      "sku": "KIT-MIC-020",
+      "name": "Horno Microondas 20L",
+      "price": 120.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 12
+        }
+      }
+    },
+    {
+      "sku": "KIT-AIR-FRY",
+      "name": "Freidora de Aire Digital 4L",
+      "price": 299.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 2
+        }
+      }
+    },
+    {
+      "sku": "TV-SAM-55UHD",
+      "name": "Smart TV 55 Inch 4K UHD",
+      "price": 1500.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 0
+        }
+      }
+    },
+    {
+      "sku": "GAM-PS5-CTRL",
+      "name": "Mando Inalámbrico PS5 DualSense",
+      "price": 300.00,
+      "extension_attributes": {
+        "stock_item": {
+          "qty": 35
+        }
+      }
+    }
+  ]
+}

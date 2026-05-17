@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "code": "DESCUENTO10",
+      "rule_id": 1
+    },
+    {
+      "code": "ECOMMERCE2026",
+      "rule_id": 2
+    },
+    {
+      "code": "BIENVENIDA",
+      "rule_id": 3
+    },
+    {
+      "code": "VERANO2026",
+      "rule_id": 4
+    }
+  ]
+}

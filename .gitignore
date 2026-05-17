@@ -1,0 +1,35 @@
+# --- Credenciales y secretos ---
+.env
+service_account.json
+postgrest_bd.txt
+*.key
+*.pem
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# --- Entornos virtuales ---
+venv/
+.venv/
+env/
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini

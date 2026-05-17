@@ -1,0 +1,115 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "email": "manuel.huaman@gmail.com",
+      "firstname": "Manuel",
+      "lastname": "Huamán",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "48014673"},
+        {"attribute_code": "cellphone", "value": "999888777"}
+      ]
+    },
+    {
+      "id": 2,
+      "email": "ana.torres@hotmail.com",
+      "firstname": "Ana Lucía",
+      "lastname": "Torres",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "72154389"},
+        {"attribute_code": "cellphone", "value": "988777666"}
+      ]
+    },
+    {
+      "id": 3,
+      "email": "carlos.mendoza@gmail.com",
+      "firstname": "Carlos",
+      "lastname": "Mendoza",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "10234567"},
+        {"attribute_code": "cellphone", "value": "977666555"}
+      ]
+    },
+    {
+      "id": 4,
+      "email": "c.mendoza@trabajo.com",
+      "firstname": "Carlos",
+      "lastname": "Mendoza Delgado",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "10234567"},
+        {"attribute_code": "cellphone", "value": "977666550"}
+      ]
+    },
+    {
+      "id": 5,
+      "email": "sofia.castro@gmail.com",
+      "firstname": "Sofía",
+      "lastname": "Castro",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "09876543"},
+        {"attribute_code": "cellphone", "value": "966555444"}
+      ]
+    },
+    {
+      "id": 6,
+      "email": "javier.ortiz@yahoo.com",
+      "firstname": "Javier",
+      "lastname": "Ortiz",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "45678901"},
+        {"attribute_code": "cellphone", "value": "955444333"}
+      ]
+    },
+    {
+      "id": 7,
+      "email": "mariafe.ramos@outlook.com",
+      "firstname": "María Fe",
+      "lastname": "Ramos",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "31234567"},
+        {"attribute_code": "cellphone", "value": "944333222"}
+      ]
+    },
+    {
+      "id": 8,
+      "email": "roberto.flores@gmail.com",
+      "firstname": "Roberto",
+      "lastname": "Flores",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "87654321"},
+        {"attribute_code": "cellphone", "value": "933222111"}
+      ]
+    },
+    {
+      "id": 9,
+      "email": "patricia.loli@gmail.com",
+      "firstname": "Patricia",
+      "lastname": "Loli",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "23456789"},
+        {"attribute_code": "cellphone", "value": "922111000"}
+      ]
+    },
+    {
+      "id": 10,
+      "email": "daniela.solis@hotmail.com",
+      "firstname": "Daniela",
+      "lastname": "Solís",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "65432109"},
+        {"attribute_code": "cellphone", "value": "911000999"}
+      ]
+    },
+    {
+      "id": 11,
+      "email": "diego.rojas@gmail.com",
+      "firstname": "Diego",
+      "lastname": "Rojas",
+      "custom_attributes": [
+        {"attribute_code": "document_number", "value": "78901234"},
+        {"attribute_code": "cellphone", "value": "900999888"}
+      ]
+    }
+  ],
+  "total_count": 11
+}
