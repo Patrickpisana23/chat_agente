@@ -4,6 +4,14 @@ service_account.json
 postgrest_bd.txt
 *.key
 *.pem
+*.txt
+
+# --- Documentos PDF ---
+*.pdf
+
+# --- Markdown (excepto README) ---
+*.md
+!README.md
 
 # --- Python ---
 __pycache__/
